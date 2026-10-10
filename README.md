@@ -9,6 +9,62 @@ pipeline and review UI use PostgreSQL.
 - GitHub: [IamJasonBian/columbia-hackathon](https://github.com/IamJasonBian/columbia-hackathon)
 - Hackathon working document: [Quote Document (Sent)](https://docs.google.com/document/d/1TeD60bNlQqb1bOKdDRpUHgEC1B-TAxk094qYutOpqyM/edit?tab=t.0)
 
+## System architecture
+
+```mermaid
+flowchart LR
+    Gmail[Gmail API] --> Poller[Mailbox poller]
+    Upload[Direct file upload] --> Extract[Extraction API :8012]
+    Poller --> Parse[Document extractors<br/>email · PDF · OCR · spreadsheet]
+    Extract --> Parse
+
+    Parse --> Mail[(PostgreSQL<br/>mailbox documents)]
+    Poller --> Queue[(SQLite task queue)]
+    Queue --> Worker[Pipeline worker]
+    Mail --> Worker
+    Worker --> Quotes[(PostgreSQL<br/>quotes · line items · compliance)]
+
+    Worker --> Nicrron[Nicrron API]
+    Extract --> OpenAI[OpenAI API]
+    Nicrron -. model traces .-> Prism[PRISM / Block Convey]
+    OpenAI -. model traces .-> Prism
+
+    Quotes --> Review[Review API :8014]
+    Review --> UI[React review UI]
+    Validation[Validation API :8010] --> Memory[(In-memory jobs)]
+```
+
+### RFQ ingestion and review flow
+
+```mermaid
+sequenceDiagram
+    participant G as Gmail
+    participant P as Mailbox poller
+    participant DB as PostgreSQL
+    participant Q as SQLite queue
+    participant W as Pipeline worker
+    participant N as Nicrron
+    participant O as PRISM
+    participant A as Review API
+    participant U as Review UI
+
+    P->>G: Fetch new RFC 822 messages
+    P->>P: Extract body, attachments, tables, and OCR
+    P->>DB: Store parsed mailbox document
+    P->>Q: Enqueue rfq_line_items
+    W->>Q: Claim task
+    W->>DB: Upsert quote, line items, and rule-based compliance
+    W->>Q: Enqueue nicrron_classify
+    W->>N: Classify email and assess required documents
+    N-->>W: Classification and compliance JSON
+    W-->>O: Send model trace asynchronously
+    W->>DB: Store classification and compliance results
+    U->>A: Load quotes and acquire row locks
+    A->>DB: Read quotes and persist leases
+    U->>A: Save pricing and compliance decisions
+    A->>DB: Recheck lease and commit edits
+```
+
 ## Quick start
 
 ```bash
@@ -118,19 +174,32 @@ development. Mailbox reads under `/pulls` are served from PostgreSQL.
 
 ## Nicrron classification setup
 
-1. Sign in to [Nicrron](https://www.nicrron.ai/) and open the dashboard.
-2. Open **Keys** and generate a Nicrron API key (`sk-af-...`).
-3. On the same page, click **Add Provider Key**, choose a provider, and add that provider's API key. Nicrron currently documents this as BYOK.
-4. Export the Nicrron key only on the backend:
+Nicrron provides the OpenAI-compatible classification endpoint used by direct
+`/extract/nicrron` requests and queued RFQ compliance jobs.
+
+1. Sign in to [Nicrron](https://www.nicrron.ai/) and open **Keys**.
+2. Generate a Nicrron API key (`sk-af-...`).
+3. Click **Add Provider Key**, choose the model provider, and add that
+   provider's key. Nicrron uses bring-your-own-key (BYOK).
+4. Add the backend-only configuration to `.env` or your secret manager:
 
 ```bash
-export NICRRON_API_KEY="sk-af-..."
-# Optional; these are the defaults:
-export NICRRON_MODEL="nicrron/fastest"
-export NICRRON_BASE_URL="https://api.nicrron.ai/v1"
+NICRRON_API_KEY=sk-af-...
+NICRRON_MODEL=nicrron/fastest
+NICRRON_BASE_URL=https://api.nicrron.ai/v1
+ENABLE_CLASSIFICATION_PIPELINE=1
 ```
 
-5. Start the extraction service and submit a classification job:
+5. Export or source those variables, then start the extraction API. Start the
+   worker as well when processing mailbox jobs:
+
+```bash
+set -a; source .env; set +a
+python -m extraction_service.main
+python bootstrap/worker.py
+```
+
+6. Verify direct classification:
 
 ```bash
 curl http://127.0.0.1:8012/extract/nicrron \
@@ -151,16 +220,37 @@ OpenAI structured extraction and Nicrron classification emit traces to
 `PRISMTRACE_PROJECT_ID` are set. Delivery runs off the request path and fails
 open, so an observability outage does not break extraction.
 
+1. Create an account at [prism.blockconvey.com](https://prism.blockconvey.com/signup).
+2. In **Settings → Project**, copy the project ID. Use a separate project for
+   each environment.
+3. On the API keys page, create an **ingest-only** key and copy it when shown.
+4. Add the values to `.env` or your deployment secret manager:
+
 ```bash
-export PRISMTRACE_HOST=https://prism.blockconvey.com
-export PRISMTRACE_PROJECT_ID=00000000-0000-0000-0000-000000000000
-export PRISMTRACE_API_KEY=pt-sk-...
+PRISMTRACE_HOST=https://prism.blockconvey.com
+PRISMTRACE_PROJECT_ID=00000000-0000-0000-0000-000000000000
+PRISMTRACE_API_KEY=pt-sk-...
 ```
 
-Trace payloads include model prompts and outputs, which can contain document
-content. Use an environment-specific PRISM project and an ingest-only key.
+5. Verify the credentials before starting traffic:
 
-### Customer compliance mapping
+```bash
+set -a; source .env; set +a
+curl -sS -X POST "$PRISMTRACE_HOST/api/setup-doctor/handshake" \
+  -H "Content-Type: application/json" \
+  -H "X-PRISMtrace-Key: $PRISMTRACE_API_KEY" \
+  -d '{"project_id":"'"$PRISMTRACE_PROJECT_ID"'","send_test_trace":true}'
+```
+
+6. Start the extraction API or pipeline worker. Calls appear under the stable
+   agents `structured-extraction`, `nicrron-extraction`,
+   `nicrron-classification`, and `nicrron-compliance`.
+
+Trace payloads include model prompts and outputs, which can contain document
+content and customer data. Use an environment-specific PRISM project and never
+place the PRISM key in frontend code.
+
+## Customer compliance mapping
 
 Queued email classification also loads `config/customer_compliance.json`. An exact sender
 email wins over a sender-domain match. Each customer defines the compliance documents that
