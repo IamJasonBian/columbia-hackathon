@@ -24,6 +24,24 @@ export type QuoteSummary = {
   source_message_date: string | null;
   line_count: number;
   locked_count: number;
+  open_compliance_count: number;
+};
+
+export const COMPLIANCE_STATUSES = ["required", "document_missing", "satisfied", "waived", "send_to_buyer"] as const;
+
+export type Compliance = {
+  id: number;
+  quote_id: number;
+  line_item_id: number | null;
+  requirement_code: string;
+  requirement_label: string;
+  source: string;
+  matched_pattern: string | null;
+  source_text: string | null;
+  status: (typeof COMPLIANCE_STATUSES)[number];
+  required_document_type: string | null;
+  attachment_path: string | null;
+  buyer_message: string | null;
 };
 
 // NUMERIC columns arrive as strings (Decimal) — keep them that way to avoid float drift.
@@ -57,9 +75,10 @@ export type LineItem = {
   lock: LockInfo | null;
 };
 
-export type QuoteDetail = Omit<QuoteSummary, "line_count" | "locked_count"> & {
+export type QuoteDetail = Omit<QuoteSummary, "line_count" | "locked_count" | "open_compliance_count"> & {
   mailbox: string | null;
   line_items: LineItem[];
+  compliance: Compliance[];
 };
 
 export type LockGrant = {
@@ -107,6 +126,8 @@ export const api = {
   unlock: (lineId: number) => call<{ released: boolean }>("DELETE", `/line-items/${lineId}/lock`),
   save: (lineId: number, patch: Partial<LineItem>, release: boolean) =>
     call<LineItem>("PATCH", `/line-items/${lineId}?release=${release}`, patch),
+  saveCompliance: (id: number, patch: Partial<Pick<Compliance, "status" | "buyer_message">>) =>
+    call<Compliance>("PATCH", `/compliance/${id}`, patch),
   /** Fire-and-forget release that survives tab close. */
   unlockBeacon: (lineId: number) => navigator.sendBeacon(`/api/line-items/${lineId}/unlock`),
 };

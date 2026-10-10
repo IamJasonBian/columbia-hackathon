@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type Config, type User } from "./api";
 import { Login } from "./Login";
+import { Logo } from "./icons";
 import { QuoteList } from "./QuoteList";
 import { QuoteView } from "./QuoteView";
 
@@ -33,7 +34,10 @@ export function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <strong>Line Item Review</strong>
+        <div className="brand">
+          <Logo />
+          <strong>Line Item Review</strong>
+        </div>
         <div className="me">
           {user.picture && <img src={user.picture} alt="" referrerPolicy="no-referrer" />}
           <span>{user.name ?? user.email}</span>

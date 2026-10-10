@@ -261,6 +261,13 @@ _LOCK_COLUMNS = """
 """
 
 
+_COMPLIANCE_COLUMNS = """
+    id, quote_id, line_item_id, requirement_code, requirement_label, source,
+    matched_pattern, source_text, status, required_document_type,
+    attachment_path, buyer_message, created_at
+"""
+
+
 def _fetch_line(conn: Any, line_item_id: int) -> dict[str, Any] | None:
     return conn.execute(
         f"""
@@ -287,7 +294,10 @@ def list_quotes(
         SELECT r.id, r.rfq_number, r.email_subject, r.buyer_organization,
                r.workflow_status, r.source_message_date,
                count(l.id) AS line_count,
-               count(k.line_item_id) FILTER (WHERE k.expires_at > now()) AS locked_count
+               count(k.line_item_id) FILTER (WHERE k.expires_at > now()) AS locked_count,
+               (SELECT count(*) FROM compliance c
+                WHERE c.quote_id = r.id AND c.status IN ('required', 'document_missing')
+               ) AS open_compliance_count
         FROM rfq_quotes r
         JOIN line_items l ON l.quote_id = r.id
         LEFT JOIN line_item_locks k ON k.line_item_id = l.id
@@ -330,7 +340,16 @@ def get_quote(
         """,
         (quote_id,),
     ).fetchall()
-    return {**quote, "line_items": lines, "server_time": datetime.now().astimezone()}
+    compliance = conn.execute(
+        f"SELECT {_COMPLIANCE_COLUMNS} FROM compliance WHERE quote_id = %s ORDER BY id",
+        (quote_id,),
+    ).fetchall()
+    return {
+        **quote,
+        "line_items": lines,
+        "compliance": compliance,
+        "server_time": datetime.now().astimezone(),
+    }
 
 
 # --------------------------------------------------------------------------- locks
@@ -491,6 +510,47 @@ def update_line_item(
     return _fetch_line(conn, line_item_id)
 
 
+ComplianceStatus = Literal["required", "document_missing", "satisfied", "waived", "send_to_buyer"]
+
+
+class CompliancePatch(BaseModel):
+    """Reviewer-editable compliance columns. Omitted fields are left untouched."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ComplianceStatus | None = None
+    buyer_message: str | None = None
+
+
+@app.patch("/api/compliance/{compliance_id}")
+def update_compliance(
+    compliance_id: int,
+    patch: CompliancePatch,
+    _user: User = Depends(current_user),
+    conn: Any = Depends(db),
+) -> dict[str, Any]:
+    """Update a compliance row's review status (quote-level; no row lease, last write wins).
+
+    Raises:
+        HTTPException: 404 if the row is gone, 422 if status is null.
+    """
+    fields = patch.model_dump(exclude_unset=True)
+    if "status" in fields and fields["status"] is None:
+        raise HTTPException(422, "status cannot be null")
+    if fields:
+        assignments = ", ".join(f"{name} = %({name})s" for name in fields)
+        conn.execute(
+            f"UPDATE compliance SET {assignments} WHERE id = %(id)s",
+            {**fields, "id": compliance_id},
+        )
+    row = conn.execute(
+        f"SELECT {_COMPLIANCE_COLUMNS} FROM compliance WHERE id = %s", (compliance_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "compliance row not found")
+    return row
+
+
 # --------------------------------------------------------------------------- static
 
 if FRONTEND_DIST.is_dir():
@@ -500,6 +560,10 @@ if FRONTEND_DIST.is_dir():
     def spa(path: str) -> FileResponse:
         if path.startswith("api/"):
             raise HTTPException(404)
+        # Top-level files from frontend/public (favicon etc.); everything else is the SPA.
+        candidate = (FRONTEND_DIST / path).resolve()
+        if path and candidate.parent == FRONTEND_DIST.resolve() and candidate.is_file():
+            return FileResponse(candidate)
         return FileResponse(FRONTEND_DIST / "index.html")
 
 

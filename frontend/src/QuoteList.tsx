@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type QuoteSummary } from "./api";
+import { LockIcon } from "./icons";
 
 export function QuoteList({ selected, onSelect }: { selected: number | null; onSelect: (id: number) => void }) {
   const [query, setQuery] = useState("");
@@ -27,6 +28,7 @@ export function QuoteList({ selected, onSelect }: { selected: number | null; onS
   return (
     <div className="quote-list">
       <input
+        aria-label="Search quotes"
         className="search"
         placeholder="Search RFQ #, subject, buyer"
         value={query}
@@ -42,7 +44,16 @@ export function QuoteList({ selected, onSelect }: { selected: number | null; onS
               <span className="quote-meta">
                 <span className={`pill status-${q.workflow_status}`}>{q.workflow_status}</span>
                 <span>{q.line_count} lines</span>
-                {q.locked_count > 0 && <span className="pill locked">🔒 {q.locked_count}</span>}
+                {q.locked_count > 0 && (
+                  <span className="pill locked">
+                    <LockIcon /> {q.locked_count}
+                  </span>
+                )}
+                {q.open_compliance_count > 0 && (
+                  <span className="pill cert">
+                    {q.open_compliance_count} cert{q.open_compliance_count === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
             </button>
           </li>

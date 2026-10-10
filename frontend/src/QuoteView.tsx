@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, type LineItem, type LockInfo, type QuoteDetail, type User } from "./api";
+import { CompliancePanel } from "./CompliancePanel";
+import { LockIcon } from "./icons";
 
 const POLL_MS = 3000;
 
@@ -149,14 +151,19 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
     <div className="quote-view">
       <div className="quote-head">
         <div>
-          <h2>{quote.rfq_number ?? `Quote ${quote.id}`}</h2>
           <div className="muted">{quote.email_subject}</div>
+          <h2>{quote.rfq_number ?? `Quote ${quote.id}`}</h2>
         </div>
         <span className={`pill status-${quote.workflow_status}`}>{quote.workflow_status}</span>
       </div>
-      <p className="hint muted">Click a row to lock it for editing. Others see it locked until you save, cancel, or go idle ({ttlSeconds}s).</p>
+      <CompliancePanel rows={quote.compliance} lines={quote.line_items} onSaved={refresh} onError={(m) => flash("error", m)} />
 
-      <div className="table-wrap">
+      <section className="panel" aria-labelledby="lines-h">
+      <div className="panel-head">
+        <h3 id="lines-h">Line items</h3>
+        <span className="muted">Click a row to lock it · releases after {ttlSeconds}s idle</span>
+      </div>
+      <div className="table-scroll">
         <table className="lines">
           <thead>
             <tr>
@@ -194,6 +201,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
           </tbody>
         </table>
       </div>
+      </section>
       {toast && <div className={`toast ${toast.kind}`}>{toast.text}</div>}
     </div>
   );
@@ -226,7 +234,9 @@ function LineRows(props: {
         <td>
           <span className={`pill line-${line.line_status}`}>{line.line_status}</span>
         </td>
-        <td>{mine ? <span className="pill mine">✎ you</span> : line.lock ? <span className="pill locked">🔒 {who(line.lock)}</span> : null}</td>
+        <td>{mine ? <span className="pill mine">Editing · you</span> : line.lock ? <span className="pill locked">
+              <LockIcon /> {who(line.lock)}
+            </span> : null}</td>
       </tr>
       {mine && (
         <tr className="editor-row">

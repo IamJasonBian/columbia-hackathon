@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Config, type User } from "./api";
+import { LockIcon, Logo } from "./icons";
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
   }
 }
 
+/** Signed-out home: what the tool does, plus the sign-in form. */
 export function Login({ config, onSignedIn }: { config: Config; onSignedIn: (u: User) => void }) {
   const buttonRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,39 +46,93 @@ export function Login({ config, onSignedIn }: { config: Config; onSignedIn: (u: 
   }, [config.google_client_id, onSignedIn]);
 
   return (
-    <div className="center">
-      <div className="card login">
-        <h1>Line Item Review</h1>
-        <p className="muted">Sign in with any Google account — first sign-in creates your account.</p>
-        {config.google_client_id ? (
-          <div ref={buttonRef} />
-        ) : (
-          <p className="warn">GOOGLE_CLIENT_ID is not set on the server.</p>
-        )}
-        {config.dev_auth && (
-          <form
-            className="dev-login"
-            onSubmit={(e) => {
-              e.preventDefault();
-              api
-                .loginDev(email)
-                .then(onSignedIn)
-                .catch((err) => setError(err.message));
-            }}
-          >
-            <label className="muted">Dev sign-in (REVIEW_DEV_AUTH=1)</label>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <button type="submit">Sign in</button>
-          </form>
-        )}
-        {error && <p className="error">{error}</p>}
-      </div>
+    <div className="landing">
+      <section className="landing-brand">
+        <div className="brand">
+          <Logo />
+          <span>Line Item Review</span>
+        </div>
+        <div className="landing-pitch">
+          <h1>Price every RFQ line without stepping on each other.</h1>
+          <p>
+            Incoming RFQs are parsed into line items and buyer compliance requirements. Click a row to lock it while you price
+            it — your teammates see who has it until you save or step away.
+          </p>
+        </div>
+        <ul className="legend">
+          <li>
+            <span className="swatch mine" /> Blue — you're editing
+          </li>
+          <li>
+            <span className="swatch locked" /> Amber — a teammate has it
+          </li>
+          <li>
+            <span className="swatch open" /> Open — click to take it
+          </li>
+        </ul>
+        <div className="preview" aria-hidden="true">
+          <div className="preview-row">
+            <span className="mono">1</span>
+            <span>Medical mask, Type II, EN 14683, ear loops</span>
+          </div>
+          <div className="preview-row mine">
+            <span className="mono">2</span>
+            <span>Medical mask, Type II, EN 14683, ties</span>
+            <span className="pill mine">Editing · you</span>
+          </div>
+          <div className="preview-row locked">
+            <span className="mono">3</span>
+            <span>Sample container, 60 mL, screw cap</span>
+            <span className="pill locked">
+              <LockIcon /> Teammate
+            </span>
+          </div>
+        </div>
+      </section>
+      <section className="landing-form">
+        <div className="signin">
+          <div>
+            <h2>Sign in</h2>
+            <p className="muted">First sign-in creates your account.</p>
+          </div>
+          {config.google_client_id && <div ref={buttonRef} />}
+          {config.dev_auth && (
+            <form
+              className={config.google_client_id ? "signin-form divided" : "signin-form"}
+              onSubmit={(e) => {
+                e.preventDefault();
+                api
+                  .loginDev(email)
+                  .then(onSignedIn)
+                  .catch((err) => setError(err.message));
+              }}
+            >
+              <label htmlFor="email">{config.google_client_id ? "Or use your email" : "Work email"}</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <button type="submit" className="primary">
+                Continue
+              </button>
+            </form>
+          )}
+          {!config.google_client_id && !config.dev_auth && <p className="warn">Sign-in is not configured on this server.</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <p className="fineprint muted">
+            Edits write straight to the shared quote database. Row locks release after {config.lock_ttl_seconds} seconds idle.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
