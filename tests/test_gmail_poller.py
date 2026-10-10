@@ -214,14 +214,15 @@ def test_public_view_requires_token_and_hides_full_text(tmp_path, monkeypatch):
     client = TestClient(public_view.app)
     assert client.get("/pulls/box@example.com/state").status_code == 401
     assert client.get("/pulls/box@example.com/state?token=wrong").status_code == 401
-    ok = client.get("/pulls/box@example.com/state", headers={"Authorization": "Bearer s3cret"})
+    auth = {"Authorization": "Bearer s3cret"}
+    ok = client.get("/pulls/box@example.com/state", headers=auth)
     assert ok.json()["processed_count"] == 1
-    rows = client.get("/pulls/box@example.com/messages?token=s3cret").json()
+    rows = client.get("/pulls/box@example.com/messages", headers=auth).json()
     assert rows[0]["subject"] and "text" not in rows[0]
     # Full-extraction and upload routes do not exist on the public app.
-    assert client.get("/pulls/box@example.com/messages/m1?token=s3cret").status_code == 404
-    assert client.post("/extract?token=s3cret").status_code in (404, 405)
-    assert client.get("/docs?token=s3cret").status_code == 404
+    assert client.get("/pulls/box@example.com/messages/m1", headers=auth).status_code == 404
+    assert client.post("/extract", headers=auth).status_code in (404, 405)
+    assert client.get("/docs", headers=auth).status_code == 404
 
 
 def test_public_view_serves_filtered_postgres_logs(monkeypatch):

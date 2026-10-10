@@ -19,15 +19,21 @@ import threading
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
+
+from shared.auth import require_bearer
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("server")
 
-app = FastAPI(title="RFQ task server", version="0.2.0")
+app = FastAPI(
+    title="RFQ task server",
+    version="0.2.0",
+    dependencies=[Depends(require_bearer)],
+)
 
 _worker = None
 _stop = threading.Event()

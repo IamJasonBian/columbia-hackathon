@@ -4,8 +4,8 @@ Serves ONLY poller state and per-message summaries (date, sender, subject,
 attachment names). Full extraction text and the upload/extract endpoints stay
 on the local-only service (extraction_service.main).
 
-Auth: PUBLIC_VIEW_TOKEN, sent as ``?token=...`` or ``Authorization: Bearer``.
-The app refuses to start without it.
+Auth: PUBLIC_VIEW_TOKEN, sent as ``Authorization: Bearer``. Query-string
+tokens are intentionally rejected because access logs commonly record URLs.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from extraction_service.main import list_polled_mailboxes, poll_messages, poll_s
 
 def _require_token(request: Request) -> None:
     expected = os.environ.get("PUBLIC_VIEW_TOKEN", "")
-    supplied = request.query_params.get("token") or ""
+    supplied = ""
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         supplied = auth[7:].strip()
