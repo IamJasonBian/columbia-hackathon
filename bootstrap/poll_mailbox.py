@@ -17,14 +17,14 @@ import os
 import signal
 from pathlib import Path
 
-from extraction_service.gmail.creds_store import default_store
-from extraction_service.gmail.poller import (
+from services.extraction.gmail.creds_store import default_store
+from services.extraction.gmail.poller import (
     DOCUMENT_QUERY,
     FileMailboxStore,
     MailboxPoller,
     PostgresMailboxStore,
 )
-from extraction_service.models import ExtractedDocument
+from services.extraction.models import ExtractedDocument
 
 
 def _print(message_id: str, doc: ExtractedDocument) -> None:
@@ -59,7 +59,7 @@ def main() -> None:
 
     creds = default_store().get(args.mailbox)
     if creds is None:
-        raise SystemExit(f"{args.mailbox} is not connected — run /gmail-oauth/start?email={args.mailbox}")
+        raise SystemExit(f"{args.mailbox} is not connected — no stored OAuth credentials")
 
     on_document = _print
     on_extracted = None
@@ -69,7 +69,7 @@ def main() -> None:
         os.chmod(out_dir, 0o700)
         destination = str(out_dir)
     else:
-        from extraction_service.db.postgres import PostgresSink, database_url_from_env
+        from services.extraction.db.postgres import PostgresSink, database_url_from_env
 
         db_url = database_url_from_env()
         if not db_url:
@@ -80,7 +80,7 @@ def main() -> None:
         destination = f"postgres:{sink.ping()}"
 
     if not args.no_line_items:
-        from extraction_service.quote.task_enqueue import RfqTaskEnqueuer
+        from services.extraction.quote.task_enqueue import RfqTaskEnqueuer
 
         enqueuer = RfqTaskEnqueuer.for_mailbox(creds.email)
 

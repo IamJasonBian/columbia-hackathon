@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from extraction_service.quote.compliance_scan import scan_compliance_text
+from services.extraction.quote.compliance_scan import scan_compliance_text
 
 
 def test_detects_mtr_and_coo():

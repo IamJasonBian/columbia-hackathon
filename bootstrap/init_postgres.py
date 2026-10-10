@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from extraction_service.db.postgres import PostgresSink, database_url_from_env
+from services.extraction.db.postgres import PostgresSink, database_url_from_env
 
 
 def main() -> None:
@@ -17,7 +17,7 @@ def main() -> None:
     if missing:
         raise SystemExit(f"PostgreSQL schema incomplete; missing: {', '.join(sorted(missing))}")
 
-    print("PostgreSQL schema ready: rfq_quotes, line_items, compliance")
+    print("PostgreSQL schema ready: rfq_quotes, doc_lines.lines, compliance")
 
 
 if __name__ == "__main__":

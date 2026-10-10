@@ -10,15 +10,12 @@ if [[ -f "$ROOT/.venv/bin/activate" ]]; then
   source "$ROOT/.venv/bin/activate"
 fi
 
-python -m validation_service.main &
+python -m services.validation.main &
 VPID=$!
-python -m extraction_service.main &
-EPID=$!
-python -m review_service.main &
+python -m services.review.main &
 RPID=$!
 
-echo "validation_service PID=$VPID (8010)"
-echo "extraction_service PID=$EPID (8012)"
-echo "review_service PID=$RPID (8014)"
-trap 'kill $VPID $EPID $RPID 2>/dev/null || true' EXIT
+echo "validation PID=$VPID (8010)"
+echo "review PID=$RPID (8014)"
+trap 'kill $VPID $RPID 2>/dev/null || true' EXIT
 wait

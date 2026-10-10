@@ -24,7 +24,7 @@ logger = logging.getLogger("worker")
 
 
 def main() -> None:
-    from extraction_service.quote.pipeline_worker import PipelineWorker
+    from services.extraction.quote.pipeline_worker import PipelineWorker
 
     stop = False
 

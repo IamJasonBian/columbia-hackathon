@@ -32,7 +32,7 @@ export const COMPLIANCE_STATUSES = ["required", "document_missing", "satisfied",
 export type Compliance = {
   id: number;
   quote_id: number;
-  line_item_id: number | null;
+  line_id: number | null;
   requirement_code: string;
   requirement_label: string;
   source: string;
@@ -47,7 +47,7 @@ export type Compliance = {
 // NUMERIC columns arrive as strings (Decimal) — keep them that way to avoid float drift.
 type Num = string | number | null;
 
-export type LineItem = {
+export type Line = {
   id: number;
   quote_id: number;
   line_seq: number;
@@ -77,12 +77,12 @@ export type LineItem = {
 
 export type QuoteDetail = Omit<QuoteSummary, "line_count" | "locked_count" | "open_compliance_count"> & {
   mailbox: string | null;
-  line_items: LineItem[];
+  lines: Line[];
   compliance: Compliance[];
 };
 
 export type LockGrant = {
-  line_item_id: number;
+  line_id: number;
   user_id: number;
   expires_at: string;
   ttl_seconds: number;
@@ -122,12 +122,12 @@ export const api = {
   logout: () => call<{ ok: boolean }>("POST", "/auth/logout"),
   quotes: (q: string) => call<QuoteSummary[]>("GET", `/quotes?q=${encodeURIComponent(q)}`),
   quote: (id: number) => call<QuoteDetail>("GET", `/quotes/${id}`),
-  lock: (lineId: number) => call<LockGrant>("POST", `/line-items/${lineId}/lock`),
-  unlock: (lineId: number) => call<{ released: boolean }>("DELETE", `/line-items/${lineId}/lock`),
-  save: (lineId: number, patch: Partial<LineItem>, release: boolean) =>
-    call<LineItem>("PATCH", `/line-items/${lineId}?release=${release}`, patch),
+  lock: (lineId: number) => call<LockGrant>("POST", `/lines/${lineId}/lock`),
+  unlock: (lineId: number) => call<{ released: boolean }>("DELETE", `/lines/${lineId}/lock`),
+  save: (lineId: number, patch: Partial<Line>, release: boolean) =>
+    call<Line>("PATCH", `/lines/${lineId}?release=${release}`, patch),
   saveCompliance: (id: number, patch: Partial<Pick<Compliance, "status" | "buyer_message">>) =>
     call<Compliance>("PATCH", `/compliance/${id}`, patch),
   /** Fire-and-forget release that survives tab close. */
-  unlockBeacon: (lineId: number) => navigator.sendBeacon(`/api/line-items/${lineId}/unlock`),
+  unlockBeacon: (lineId: number) => navigator.sendBeacon(`/api/lines/${lineId}/unlock`),
 };

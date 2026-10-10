@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type LineItem, type LockInfo, type QuoteDetail, type User } from "./api";
+import { api, ApiError, type Line, type LockInfo, type QuoteDetail, type User } from "./api";
 import { CompliancePanel } from "./CompliancePanel";
 import { LockIcon } from "./icons";
 
 const POLL_MS = 3000;
 
 type FieldKind = "text" | "textarea" | "number" | "status" | "bool";
-const FIELDS: { key: keyof LineItem; label: string; kind: FieldKind }[] = [
+const FIELDS: { key: keyof Line; label: string; kind: FieldKind }[] = [
   { key: "buyer_part_no", label: "Buyer part #", kind: "text" },
   { key: "description", label: "Description", kind: "textarea" },
   { key: "quantity", label: "Quantity", kind: "number" },
@@ -26,7 +26,7 @@ const STATUSES = ["pending", "parsed", "matched", "priced", "ambiguous", "unmatc
 
 type Draft = Record<string, string | boolean>;
 
-function toDraft(line: LineItem): Draft {
+function toDraft(line: Line): Draft {
   const d: Draft = {};
   for (const f of FIELDS) {
     const v = line[f.key];
@@ -36,7 +36,7 @@ function toDraft(line: LineItem): Draft {
 }
 
 /** Only the fields the user actually changed; blank optional fields become null. */
-function diff(line: LineItem, draft: Draft): Record<string, unknown> {
+function diff(line: Line, draft: Draft): Record<string, unknown> {
   const before = toDraft(line);
   const out: Record<string, unknown> = {};
   for (const f of FIELDS) {
@@ -96,7 +96,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
     };
   }, []);
 
-  const open = async (line: LineItem) => {
+  const open = async (line: Line) => {
     if (line.id === activeId || busy) return;
     if (line.lock && line.lock.user_id !== me.id) {
       flash("info", `${who(line.lock)} is editing this row`);
@@ -124,7 +124,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
     refresh();
   };
 
-  const save = async (line: LineItem) => {
+  const save = async (line: Line) => {
     const patch = diff(line, draft);
     setBusy(true);
     try {
@@ -156,7 +156,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
         </div>
         <span className={`pill status-${quote.workflow_status}`}>{quote.workflow_status}</span>
       </div>
-      <CompliancePanel rows={quote.compliance} lines={quote.line_items} onSaved={refresh} onError={(m) => flash("error", m)} />
+      <CompliancePanel rows={quote.compliance} lines={quote.lines} onSaved={refresh} onError={(m) => flash("error", m)} />
 
       <section className="panel" aria-labelledby="lines-h">
       <div className="panel-head">
@@ -180,7 +180,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
             </tr>
           </thead>
           <tbody>
-            {quote.line_items.map((line) => {
+            {quote.lines.map((line) => {
               const mine = line.id === activeId;
               const lockedByOther = !!line.lock && line.lock.user_id !== me.id;
               return (
@@ -208,7 +208,7 @@ export function QuoteView({ quoteId, me, ttlSeconds }: { quoteId: number; me: Us
 }
 
 function LineRows(props: {
-  line: LineItem;
+  line: Line;
   mine: boolean;
   lockedByOther: boolean;
   draft: Draft;

@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from extraction_service.models import ExtractedDocument
-from extraction_service.quote.poller_ingest import persist_extracted_document
+from services.extraction.models import ExtractedDocument
+from services.extraction.quote.poller_ingest import persist_extracted_document
 
 
 def test_ingest_from_pull_json(tmp_path: Path, monkeypatch):
@@ -20,7 +20,7 @@ def test_ingest_from_pull_json(tmp_path: Path, monkeypatch):
             saved.append((header.gmail_message_id, len(items), len(compliance)))
             return 99
 
-        def get_line_items(self, quote_id):
+        def get_lines(self, quote_id):
             return []
 
     events: list[str] = []

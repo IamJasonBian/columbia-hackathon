@@ -7,12 +7,12 @@ import argparse
 import json
 from pathlib import Path
 
-from extraction_service.db.postgres import PostgresSink, database_url_from_env
-from extraction_service.db.sqlite_queue import ServiceQueue
-from extraction_service.models import ExtractedDocument
-from extraction_service.quote.poller_ingest import persist_extracted_document
-from extraction_service.quote.repository import QuoteRepository
-from extraction_service.quote.task_enqueue import enqueue_rfq_line_items_task
+from services.extraction.db.postgres import PostgresSink, database_url_from_env
+from services.extraction.db.sqlite_queue import ServiceQueue
+from services.extraction.models import ExtractedDocument
+from services.extraction.quote.poller_ingest import persist_extracted_document
+from services.extraction.quote.repository import QuoteRepository
+from services.extraction.quote.task_enqueue import enqueue_rfq_line_items_task
 
 
 def main() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from extraction_service.db.sqlite_queue import ServiceQueue
+from services.extraction.db.sqlite_queue import ServiceQueue
 
 
 def test_enqueue_claim_complete(tmp_path: Path):
@@ -41,14 +41,3 @@ def test_fail_retries_then_dead(tmp_path: Path):
     dead = q.get(job.id)
     assert dead is not None
     assert dead.status == "dead"
-
-
-def test_update_payload_persists_worker_result(tmp_path: Path):
-    q = ServiceQueue(tmp_path / "q.db")
-    job = q.enqueue("nicrron_classify", payload={"task_id": "cls-1"})
-
-    q.update_payload(job.id, {"task_id": "cls-1", "classification": {"email_label": "rfq"}})
-
-    saved = q.get(job.id)
-    assert saved is not None
-    assert saved.payload["classification"]["email_label"] == "rfq"

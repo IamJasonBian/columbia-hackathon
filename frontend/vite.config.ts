@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Dev: Vite on :5173 proxies /api to review_service on :8014 (same-origin cookies).
+// Dev: Vite on :5173 proxies /api to services/review on :8014 (same-origin cookies).
 export default defineConfig({
   plugins: [react()],
   server: {

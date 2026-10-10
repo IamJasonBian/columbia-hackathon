@@ -2,12 +2,12 @@
 
 This document describes how email RFQs move through the Columbia hackathon stack today:
 Gmail poll → extract → PostgreSQL mailbox store → SQLite task queue → pipeline worker →
-quote tables → optional Nicrron classification → review UI.
+rfq_quotes + doc_lines.lines + compliance → optional Nicrron classification → review UI.
 
 For interactive Mermaid diagrams, see [email-extraction-pipeline.html](./email-extraction-pipeline.html).
 The root [README](../README.md) also has an architecture overview and sequence diagram.
 
-**Persistence:** PostgreSQL via `psycopg` (`PostgresSink`, `QuoteRepository`, review service pool).
+**Persistence:** PostgreSQL via `psycopg` (`PostgresSink`, `QuoteRepository`, review service pool). Code lives in `services/extraction` and `services/review`.
 There is no Prisma ORM in this repository; a separate Prisma app would read/write the same tables.
 
 ## Prerequisites
@@ -15,7 +15,7 @@ There is no Prisma ORM in this repository; a separate Prisma app would read/writ
 - OAuth for the mailbox (`EMAIL_OAUTH_STORE` → file or Firestore).
 - `DATABASE_URL` (or `POSTGRES_URL`).
 - Optional: `NICRRON_API_KEY` for classification and customer compliance enrichment.
-- Processes: `bootstrap/poll_mailbox.py`, `bootstrap/worker.py`, optional `server.py` (:8020), optional `review_service` (:8014).
+- Processes: `bootstrap/poll_mailbox.py`, `bootstrap/worker.py`, optional `services.review` (:8014).
 
 ## 1. Poll tick (Gmail → extract → raw store)
 
@@ -26,7 +26,7 @@ There is no Prisma ORM in this repository; a separate Prisma app would read/writ
 3. For each new message ID (oldest first):
    - Fetch raw RFC822.
    - `extract_document` → `ExtractedDocument` (body, attachments, PDF/XLS tables, OCR if enabled).
-   - `PostgresSink.write` → upsert `mailbox_messages` (full `document` JSONB) and `mailbox_table_rows` (columnar table lines).
+   - `PostgresSink.write` → upsert `mailbox_messages` (full `document` JSONB).
    - Advance seen IDs and save poll state.
 4. Stdout: `NEW {gmail_id} | date | from | subject | attachments…`
 
@@ -39,7 +39,7 @@ There is no Prisma ORM in this repository; a separate Prisma app would read/writ
 3. Payload includes `task_id` like `rfq-{uuid12}`.
 4. Stdout: `TASK rfq-… queued for {gmail_id}`.
 
-The poller does **not** write `rfq_quotes` or `line_items`; the worker does, so deploys can hot-reload extraction logic without changing the poller.
+The poller does **not** write `rfq_quotes` or `doc_lines.lines`; the worker does, so deploys can hot-reload extraction logic without changing the poller.
 
 ## 3. Worker job: `rfq_line_items`
 
@@ -53,7 +53,7 @@ The poller does **not** write `rfq_quotes` or `line_items`; the worker does, so 
 4. `persist_extracted_document`:
    - `extract_lines_from_document` → normalized rows (`line_seq`, `line_no`, `buyer_part_no`, qty/uom, `raw_row`, etc.).
    - `scan_compliance_text` (+ buyer cert line) → initial `compliance` rows (`source=email_text`).
-   - `QuoteRepository.save_quote_bundle` → upsert `rfq_quotes`, replace `line_items`, replace quote-level compliance for that pass.
+   - `QuoteRepository.save_quote_bundle` → upsert `rfq_quotes`, replace `doc_lines.lines`, replace all compliance for the quote (`source=email_text`, `line_id` NULL).
 5. Set job `postgres_quote_id`, mark job complete.
 6. If `ENABLE_CLASSIFICATION_PIPELINE` (default on): enqueue `nicrron_classify` (idempotent `classify:{mailbox}:{gmail_id}`).
 
@@ -65,8 +65,8 @@ The poller does **not** write `rfq_quotes` or `line_items`; the worker does, so 
 2. `load_customer_compliance()` → map sender → `customer_id` and required document codes (`config/customer_compliance.json`).
 3. `assess_email_compliance` (Nicrron chat API) → email label, confidence, per-requirement attachment match.
 4. `QuoteRepository.update_classification` → merge into `rfq_quotes.parsed` (classification blob; `human_review` if sender unmapped).
-5. For mapped customers: build `compliance` rows per line item × requirement (`source=customer_mapping`), via `replace_compliance_source` (does not wipe regex `email_text` rows).
-6. Complete job; classification is also on the SQLite job payload for `GET /tasks/{task_id}` on the task server.
+5. For mapped customers: build `compliance` rows per line × requirement (`line_id` set) (`source=customer_mapping`), via `replace_compliance_source` (does not wipe regex `email_text` rows).
+6. Complete job; classification is also stored on the SQLite job payload.
 
 Model calls may emit traces to [PRISM / Block Convey](https://blockconvey.com/docs) when configured (see README).
 
@@ -74,30 +74,29 @@ Model calls may emit traces to [PRISM / Block Convey](https://blockconvey.com/do
 
 | Surface | Role |
 |--------|------|
-| `server.py` :8020 | `/health`, `/tasks`, `/tasks/{task_id}`, `POST /tasks/run-once` (Bearer); worker usually external (`WORKER_IN_PROCESS=0`). |
 | SQLite queue | Job status, stage, `postgres_quote_id`, errors. |
 | `bootstrap/ingest_pulls_to_quotes.py` | Backfill: enqueue-only or `--process-now` for pulls on disk. |
-| `bootstrap/init_postgres.py` | Schema bootstrap (`quote_schema.sql`, migrations). |
+| `bootstrap/init_postgres.py` | Schema bootstrap + idempotent `line_items` → `doc_lines.lines` migration. |
 
 ## 6. Human review
 
-**Code:** `review_service` :8014 and `frontend/`.
+**Code:** `services/review` :8014 and `frontend/`.
 
-1. Lists quotes and line items from `rfq_quotes` and `line_items`.
-2. `line_item_locks` lease per row (heartbeat TTL).
-3. PATCH line fields under lease; Google sign-in or `REVIEW_DEV_AUTH` for local testing.
+1. Lists quotes, lines, and compliance from `rfq_quotes`, `doc_lines.lines`, and `compliance`.
+2. `doc_lines.line_locks` lease per row (heartbeat TTL).
+3. `PATCH /api/lines/{id}` under lease; `PATCH /api/compliance/{id}` for status/buyer message (no lease); Google sign-in or `REVIEW_DEV_AUTH` for local testing.
 
 ## Happy-path timeline (one message)
 
 ```text
 Gmail new RFQ email
   → poller: extract_document
-  → Postgres: mailbox_messages + mailbox_table_rows
+  → Postgres: mailbox_messages
   → SQLite: rfq_line_items (task_id rfq-…)
-  → worker: load document → line_items + rfq_quotes + email_text compliance
+  → worker: load document → doc_lines.lines + rfq_quotes + email_text compliance
   → SQLite: nicrron_classify (task_id cls-…)
   → worker: Nicrron → rfq_quotes.parsed.classification + customer_mapping compliance
-  → reviewer: UI edits locked line_items in Postgres
+  → reviewer: UI edits locked doc_lines.lines + compliance in Postgres
 ```
 
 ## Diagram vs implementation

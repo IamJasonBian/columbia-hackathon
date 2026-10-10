@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from extraction_service.db.sqlite_queue import ServiceQueue
-from extraction_service.models import ExtractedDocument
-from extraction_service.quote.task_enqueue import RfqTaskEnqueuer, enqueue_rfq_line_items_task
+from services.extraction.db.sqlite_queue import ServiceQueue
+from services.extraction.models import ExtractedDocument
+from services.extraction.quote.task_enqueue import RfqTaskEnqueuer, enqueue_rfq_line_items_task
 
 
 def test_enqueue_only_no_postgres(tmp_path: Path):

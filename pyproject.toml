@@ -9,7 +9,6 @@ dependencies = [
   "pydantic>=2.7.0",
   "google-auth>=2.29.0",
   "requests>=2.31.0",
-  "python-multipart>=0.0.9",
   "pdfplumber>=0.11.0",
   "openpyxl>=3.1.0",
   "Pillow>=10.0.0",
@@ -28,7 +27,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["shared*", "validation_service*", "extraction_service*", "review_service*"]
+include = ["services*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

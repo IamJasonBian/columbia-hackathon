@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from extraction_service.models import ExtractedDocument
-from extraction_service.quote.document_loader import load_extracted_document
+from services.extraction.quote.document_loader import load_extracted_document
 
 
 def test_hot_load_prefers_fresh_disk(tmp_path: Path):

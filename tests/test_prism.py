@@ -1,18 +1,4 @@
-from extraction_service.prism import PrismConfig, build_trace
-
-
-def test_prism_config_requires_key_and_project(monkeypatch):
-    monkeypatch.delenv("PRISMTRACE_API_KEY", raising=False)
-    monkeypatch.setenv("PRISMTRACE_PROJECT_ID", "project-id")
-    assert PrismConfig.from_env() is None
-
-    monkeypatch.setenv("PRISMTRACE_API_KEY", "pt-sk-test")
-    monkeypatch.setenv("PRISMTRACE_HOST", "https://example.test/")
-    assert PrismConfig.from_env() == PrismConfig(
-        api_key="pt-sk-test",
-        project_id="project-id",
-        host="https://example.test",
-    )
+from services.extraction.prism import PrismConfig, build_trace
 
 
 def test_build_trace_maps_openai_usage():

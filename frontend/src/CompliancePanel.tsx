@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, COMPLIANCE_STATUSES, type Compliance, type LineItem } from "./api";
+import { api, COMPLIANCE_STATUSES, type Compliance, type Line } from "./api";
 
 const OPEN = new Set(["required", "document_missing"]);
 
@@ -10,7 +10,7 @@ export function CompliancePanel({
   onError,
 }: {
   rows: Compliance[];
-  lines: LineItem[];
+  lines: Line[];
   onSaved: () => void;
   onError: (msg: string) => void;
 }) {
@@ -63,7 +63,7 @@ export function CompliancePanel({
                     {r.required_document_type && <div className="muted small">Doc: {r.required_document_type}</div>}
                   </td>
                   <td className="mono">{r.requirement_code}</td>
-                  <td className="muted">{r.line_item_id ? `Line ${lineSeq.get(r.line_item_id) ?? r.line_item_id}` : "Whole quote"}</td>
+                  <td className="muted">{r.line_id ? `Line ${lineSeq.get(r.line_id) ?? r.line_id}` : "Whole quote"}</td>
                   <td className="muted">{r.source}</td>
                   <td>
                     <input
