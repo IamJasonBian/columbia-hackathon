@@ -13,6 +13,7 @@ import base64
 import io
 import json
 import os
+import time
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field
 from extraction_service.extractors.image_extractor import load_image_pages
 from extraction_service.extractors.pdf_extractor import render_pdf_pages
 from extraction_service.models import DocumentKind, ExtractedDocument
+from extraction_service.prism import emit_trace
 
 DEFAULT_MODEL = "gpt-5-mini"
 
@@ -160,6 +162,7 @@ def extract_structured(
         else {"type": "json_object"}
     )
 
+    started = time.perf_counter()
     try:
         response = client.responses.create(
             model=model,
@@ -172,11 +175,40 @@ def extract_structured(
     except Exception as e:
         raise LlmExtractionError(f"OpenAI request failed: {e}") from e
 
+    latency_ms = round((time.perf_counter() - started) * 1000)
     raw = response.output_text
+    usage = response.usage.model_dump() if getattr(response, "usage", None) else {}
     try:
         data = json.loads(raw)
     except (TypeError, json.JSONDecodeError) as e:
+        emit_trace(
+            model=model,
+            input_messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": text},
+            ],
+            output_message=str(raw or ""),
+            latency_ms=latency_ms,
+            usage=usage,
+            session_id=str(doc.metadata.get("message_id") or doc.filename),
+            agent_id="structured-extraction",
+            agent_name="Structured Document Extraction",
+            metadata={"provider": "openai", "status": "invalid_json"},
+        )
         raise LlmExtractionError(f"model returned non-JSON output: {raw!r:.200}") from e
 
-    usage = response.usage.model_dump() if getattr(response, "usage", None) else {}
+    emit_trace(
+        model=model,
+        input_messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": text},
+        ],
+        output_message=raw,
+        latency_ms=latency_ms,
+        usage=usage,
+        session_id=str(doc.metadata.get("message_id") or doc.filename),
+        agent_id="structured-extraction",
+        agent_name="Structured Document Extraction",
+        metadata={"provider": "openai", "status": "success"},
+    )
     return LlmExtraction(model=model, data=data, usage=usage, truncated=truncated)

@@ -4,6 +4,11 @@ FastAPI services for validation, document extraction, and line-item review.
 Validation jobs and direct extraction requests use in-memory storage; the RFQ
 pipeline and review UI use PostgreSQL.
 
+## Project links
+
+- GitHub: [IamJasonBian/columbia-hackathon](https://github.com/IamJasonBian/columbia-hackathon)
+- Hackathon working document: [Quote Document (Sent)](https://docs.google.com/document/d/1TeD60bNlQqb1bOKdDRpUHgEC1B-TAxk094qYutOpqyM/edit?tab=t.0)
+
 ## Quick start
 
 ```bash
@@ -138,6 +143,22 @@ The response stores the local parse in `document` and the Nicrron result in
 `structured.classification`. If Nicrron cannot classify the document, the service logs the
 failure and returns `classification: null`. Keep the Nicrron key out of browser code and
 source control.
+
+## PRISM observability
+
+OpenAI structured extraction and Nicrron classification emit traces to
+[PRISM](https://blockconvey.com/docs) when both `PRISMTRACE_API_KEY` and
+`PRISMTRACE_PROJECT_ID` are set. Delivery runs off the request path and fails
+open, so an observability outage does not break extraction.
+
+```bash
+export PRISMTRACE_HOST=https://prism.blockconvey.com
+export PRISMTRACE_PROJECT_ID=00000000-0000-0000-0000-000000000000
+export PRISMTRACE_API_KEY=pt-sk-...
+```
+
+Trace payloads include model prompts and outputs, which can contain document
+content. Use an environment-specific PRISM project and an ingest-only key.
 
 ### Customer compliance mapping
 

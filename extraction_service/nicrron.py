@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from extraction_service.llm import MAX_INPUT_CHARS, render_document_for_prompt
 from extraction_service.models import ExtractedDocument
+from extraction_service.prism import emit_trace
 from extraction_service.quote.customer_compliance import ComplianceDocumentRequirement
 
 DEFAULT_MODEL = "nicrron/fastest"
@@ -79,12 +81,15 @@ def _json_completion(
     system: str,
     model: str | None,
     client: Any,
+    agent_id: str,
+    agent_name: str,
 ) -> tuple[str, dict[str, Any], bool, dict[str, Any]]:
     selected_model = model or os.environ.get("NICRRON_MODEL", DEFAULT_MODEL)
     text = render_document_for_prompt(doc)
     truncated = len(text) > MAX_INPUT_CHARS
     text = text[:MAX_INPUT_CHARS]
 
+    started = time.perf_counter()
     try:
         response = client.chat.completions.create(
             model=selected_model,
@@ -99,20 +104,37 @@ def _json_completion(
     except Exception as exc:
         raise NicrronExtractionError(f"Nicrron request failed: {exc}") from exc
 
+    latency_ms = round((time.perf_counter() - started) * 1000)
     if not isinstance(raw, str):
         raise NicrronExtractionError("Nicrron returned an empty response")
     normalized = raw.strip()
     if normalized.startswith("```") and normalized.endswith("```"):
         lines = normalized.splitlines()
         normalized = "\n".join(lines[1:-1]).strip()
+    usage = response.usage.model_dump() if getattr(response, "usage", None) else {}
+    trace_args = {
+        "model": selected_model,
+        "input_messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": text},
+        ],
+        "output_message": raw,
+        "latency_ms": latency_ms,
+        "usage": usage,
+        "session_id": str(doc.metadata.get("message_id") or doc.filename),
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+    }
     try:
         data = json.loads(normalized)
     except json.JSONDecodeError as exc:
+        emit_trace(**trace_args, metadata={"provider": "nicrron", "status": "invalid_json"})
         raise NicrronExtractionError(f"Nicrron returned non-JSON output: {raw[:200]!r}") from exc
     if not isinstance(data, dict):
+        emit_trace(**trace_args, metadata={"provider": "nicrron", "status": "invalid_shape"})
         raise NicrronExtractionError("Nicrron response must be a JSON object")
 
-    usage = response.usage.model_dump() if getattr(response, "usage", None) else {}
+    emit_trace(**trace_args, metadata={"provider": "nicrron", "status": "success"})
     return selected_model, usage, truncated, data
 
 
@@ -132,7 +154,12 @@ def extract_with_nicrron(
         system += f"\n\nTask:\n{instructions}"
     actual_client = client or _client()
     selected_model, usage, truncated, data = _json_completion(
-        doc, system=system, model=model, client=actual_client
+        doc,
+        system=system,
+        model=model,
+        client=actual_client,
+        agent_id="nicrron-extraction",
+        agent_name="Nicrron Document Extraction",
     )
     return NicrronExtraction(
         model=selected_model,
@@ -167,7 +194,12 @@ def classify_document(
 
     actual_client = client or _client()
     selected_model, usage, truncated, payload = _json_completion(
-        doc, system=system, model=model, client=actual_client
+        doc,
+        system=system,
+        model=model,
+        client=actual_client,
+        agent_id="nicrron-classification",
+        agent_name="Nicrron Document Classification",
     )
     try:
         result = NicrronClassification(
@@ -218,7 +250,12 @@ def assess_email_compliance(
 
     actual_client = client or _client()
     selected_model, usage, truncated, payload = _json_completion(
-        doc, system=system, model=model, client=actual_client
+        doc,
+        system=system,
+        model=model,
+        client=actual_client,
+        agent_id="nicrron-compliance",
+        agent_name="Nicrron Compliance Assessment",
     )
     try:
         result = NicrronEmailComplianceAssessment(
