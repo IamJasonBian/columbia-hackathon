@@ -177,7 +177,7 @@ development. Mailbox reads under `/pulls` are served from PostgreSQL.
 
 ## Nicrron classification setup
 
-![Nicrron classification and pipeline logs](./docs/nicrron-calls-and-logs.gif)
+![Nicrron classification and pipeline logs](./app_storage/nicrron-calls-and-logs.gif)
 
 Nicrron provides the OpenAI-compatible classification endpoint used by direct
 `/extract/nicrron` requests and queued RFQ compliance jobs.
@@ -219,6 +219,10 @@ failure and returns `classification: null`. Keep the Nicrron key out of browser 
 source control.
 
 ## PRISM observability
+
+![PRISM async trace delivery from OpenAI and Nicrron calls](./docs/prism-trace-flow.gif)
+
+![PRISM setup doctor, agents, and verification](./docs/prism-setup-handshake.gif)
 
 OpenAI structured extraction and Nicrron classification emit traces to
 [PRISM](https://blockconvey.com/docs) when both `PRISMTRACE_API_KEY` and
