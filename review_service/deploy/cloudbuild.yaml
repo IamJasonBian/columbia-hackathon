@@ -1,0 +1,6 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Dockerfile.review", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/apps/line-item-review:latest

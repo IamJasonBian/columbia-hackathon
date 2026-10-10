@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Email attachment → parse → classify → DB</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.1rem; margin-top: 2rem; }
+    .diagram { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin: 1rem 0; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+    th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+    th { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>Email attachments: poll → parse → classify → stream to database</h1>
+  <p>
+    Gmail poll (<code>MailboxPoller</code>), shared <code>extract_document</code> path,
+    optional schema-bound JSON or Nicrron classification via <strong>model gateway</strong>,
+    target DB writer.
+  </p>
+
+  <h2>Context</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  subgraph External
+    Gmail[(Gmail API)]
+    OAuthFS[(OAuth tokens)]
+    Nicrron[Nicrron API]
+    Providers[(LLM providers)]
+  end
+  subgraph Runtime
+    Poller[Mailbox poller]
+    Extract[extract_document]
+    Gateway[Model gateway / classifier]
+    Sink[DB writer]
+  end
+  subgraph Storage
+    State[_state.json]
+    AppStorage[(app/storage)]
+    CustomerMap[(customer compliance JSON)]
+    DB[(Database)]
+  end
+  OAuthFS --> Poller
+  Poller --> Gmail
+  Poller --> Extract
+  Extract --> AppStorage
+  Poller --> State
+  Extract --> Gateway
+  CustomerMap --> Gateway
+  Gateway --> Nicrron
+  Nicrron --> Providers
+  Gateway --> Providers
+  Extract --> Sink
+  Gateway --> Sink
+  Sink --> DB
+    </pre>
+  </div>
+
+  <h2>Processing pipeline</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  subgraph Tick["Poll tick"]
+    Q[Gmail search]
+    Dedup[Skip seen IDs]
+    Raw[get_raw RFC 822]
+  end
+  subgraph Parse["Parse"]
+    EML[email_extractor]
+    Recurse[Recursive attachments]
+    Doc[ExtractedDocument]
+  end
+  subgraph Enrich["Model enrichment optional"]
+    GatewayCall[schema + document]
+    Parsed[parsed JSON]
+    CustomerResolve[sender to customer_id]
+    NicrronCall[parsed attachments + customer requirements]
+    Classification[label + confidence + rationale]
+    Compliance[per-item compliance status]
+  end
+  subgraph StreamWrite["Stream to DB"]
+    MetaRow[metadata rows]
+    ColRows[table column records]
+    JsonBlob[document + parsed JSON]
+  end
+  Q --> Dedup --> Raw --> EML --> Recurse --> Doc
+  Doc --> GatewayCall --> Parsed
+  Doc --> CustomerResolve --> NicrronCall
+  Doc --> NicrronCall --> Classification
+  NicrronCall --> Compliance
+  Doc --> MetaRow
+  Doc --> ColRows
+  Doc --> JsonBlob
+  Parsed --> JsonBlob
+  Classification --> JsonBlob
+  Compliance --> JsonBlob
+  MetaRow --> DB[(Database)]
+  ColRows --> DB
+  JsonBlob --> DB
+    </pre>
+  </div>
+
+  <h2>Sequence</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  participant P as MailboxPoller
+  participant G as Gmail API
+  participant X as extract_document
+  participant C as Customer mapping
+  participant M as Model gateway / Nicrron
+  participant W as DB writer
+  participant D as Database
+  loop every interval
+    P->>G: messages.list
+    G-->>P: new IDs
+    P->>G: messages.get raw
+    P->>X: parse
+    X-->>P: ExtractedDocument
+    P->>W: stream metadata + table rows
+    W->>D: INSERT
+    opt model gateway
+      P->>M: schema + document
+      M-->>P: JSON
+      P->>W: upsert entity
+      W->>D: UPSERT
+    end
+    opt Nicrron classification
+      P->>C: resolve sender
+      C-->>P: customer_id + required documents
+      P->>M: email + parsed attachments + requirements
+      M-->>P: email label + document matches
+      P->>W: store classification + per-item compliance
+      W->>D: UPSERT
+    end
+    P->>P: save _state.json
+  end
+    </pre>
+  </div>
+
+  <h2>Data streams</h2>
+  <table>
+    <tr><th>Stream</th><th>Source</th><th>DB use</th></tr>
+    <tr><td>Columns</td><td><code>tables[].records</code></td><td>One row per spreadsheet/PDF table line</td></tr>
+    <tr><td>Parsed JSON</td><td>Model gateway + JSON schema</td><td>Entity + JSONB</td></tr>
+    <tr><td>Classification</td><td>Nicrron + allowed labels</td><td>Routing label + confidence + rationale</td></tr>
+    <tr><td>Customer compliance</td><td>Local sender mapping + Nicrron attachment match</td><td>One requirement status per RFQ line item</td></tr>
+    <tr><td>Raw parse</td><td><code>ExtractedDocument</code></td><td>Audit / reprocess</td></tr>
+  </table>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</body>
+</html>

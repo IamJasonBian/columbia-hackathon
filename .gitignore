@@ -1,0 +1,20 @@
+.env
+.env.*
+!.env.example
+.venv/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+*.tsbuildinfo
+
+# Local runtime data may contain mailbox content, logs, tokens, and queues.
+app_storage/
+
+# Machine-local links to upstream repositories.
+sources/
+
+# Frontend dependencies and generated output.
+frontend/node_modules/
+frontend/dist/

@@ -1,0 +1,30 @@
+{
+  "customers": [
+    {
+      "customer_id": "mock-customer",
+      "sender_emails": [
+        "purchasing@mockcustomer.local"
+      ],
+      "sender_domains": [
+        "mockcustomer.local"
+      ],
+      "compliance_documents": [
+        {
+          "code": "ein",
+          "document_name": "Mock EIN Letter.pdf",
+          "prompt": "Determine whether an attachment is an IRS-issued EIN assignment letter or another official document that clearly states the supplier's Employer Identification Number."
+        },
+        {
+          "code": "food_safety_plan_haccp",
+          "document_name": "Mock Food Safety Plan HACCP.pdf",
+          "prompt": "Determine whether an attachment is a Food Safety Plan based on HACCP that identifies biological, chemical, and physical production hazards and explains the facility controls for those hazards."
+        },
+        {
+          "code": "declaration_of_compliance",
+          "document_name": "Mock Declaration of Compliance.pdf",
+          "prompt": "Determine whether an attachment is a signed Declaration of Compliance or equivalent statement declaring conformity with the applicable customer, product, or regulatory requirements."
+        }
+      ]
+    }
+  ]
+}

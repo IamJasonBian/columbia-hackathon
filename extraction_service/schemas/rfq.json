@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RFQ",
+  "description": "Request for Quotation / Proposal. Pass as json_schema to POST /extract/structured.",
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "email_subject": {"type": ["string", "null"]},
+        "email_from": {"type": ["string", "null"]},
+        "email_date": {"type": ["string", "null"]},
+        "filename": {"type": ["string", "null"]},
+        "page_count": {"type": ["integer", "null"]}
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "properties": {
+        "organization": {"type": ["string", "null"]},
+        "parent_organization": {"type": ["string", "null"]},
+        "department": {"type": ["string", "null"]},
+        "document_number": {"type": ["string", "null"]},
+        "document_revision": {"type": ["string", "null"]},
+        "template_effective_date": {"type": ["string", "null"], "format": "date"},
+        "submission_email": {"type": ["string", "null"]},
+        "contact_name": {"type": ["string", "null"]},
+        "contact_phone": {"type": ["string", "null"]}
+      }
+    },
+    "rfq": {
+      "type": "object",
+      "properties": {
+        "title": {"type": ["string", "null"]},
+        "rfq_number": {"type": ["string", "null"]},
+        "project_number": {"type": ["string", "null"]},
+        "issue_date": {"type": ["string", "null"], "format": "date"},
+        "closing_date": {"type": ["string", "null"], "format": "date"},
+        "closing_time": {"type": ["string", "null"]},
+        "timezone": {"type": ["string", "null"]},
+        "briefing_session": {"type": ["string", "null"]},
+        "quote_validity": {"type": ["string", "null"]}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "summary": {"type": ["string", "null"]},
+        "objectives": {"type": ["string", "null"]},
+        "duration": {"type": ["string", "null"]},
+        "requirements": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "price_schedule": {
+      "type": "object",
+      "properties": {
+        "currency": {"type": ["string", "null"]},
+        "vat_rate": {"type": ["number", "null"]},
+        "line_items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item_no": {"type": ["integer", "null"]},
+              "description": {"type": "string"},
+              "unit_of_measure": {"type": ["string", "null"]},
+              "quantity": {"type": ["number", "null"]},
+              "unit_price_excl_vat": {"type": ["number", "null"]},
+              "total_price_excl_vat": {"type": ["number", "null"]}
+            },
+            "required": ["description"]
+          }
+        },
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "properties": {
+        "method": {"type": ["string", "null"]},
+        "stages": {"type": "array", "items": {"type": "string"}},
+        "functionality": {
+          "type": "object",
+          "properties": {
+            "max_score": {"type": ["number", "null"]},
+            "min_score_to_proceed": {"type": ["number", "null"]},
+            "criteria": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "max_points": {"type": ["number", "null"]},
+                  "evidence_required": {"type": ["string", "null"]},
+                  "scoring": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {"condition": {"type": "string"}, "points": {"type": "number"}},
+                      "required": ["condition", "points"]
+                    }
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "price_points": {"type": ["number", "null"]},
+        "specific_goals_points": {"type": ["number", "null"]},
+        "specific_goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "goal": {"type": "string"},
+              "points": {"type": ["number", "null"]},
+              "evidence_required": {"type": ["string", "null"]}
+            },
+            "required": ["goal"]
+          }
+        }
+      }
+    },
+    "required_documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {"type": "string"},
+          "document": {"type": "string"},
+          "notes": {"type": ["string", "null"]}
+        },
+        "required": ["category", "document"]
+      }
+    },
+    "bidder_fields_requested": {"type": "array", "items": {"type": "string"}},
+    "disqualification_rules": {"type": "array", "items": {"type": "string"}},
+    "conditions": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["issuer", "rfq", "scope", "evaluation"]
+}

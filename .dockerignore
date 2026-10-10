@@ -1,0 +1,11 @@
+# Allowlist: only what Dockerfile.review needs. Keeps .env, app_storage/ (mail), .venv out.
+*
+!Dockerfile.review
+!review_service/
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/index.html
+!frontend/src/
+**/__pycache__
