@@ -8,6 +8,7 @@ pipeline and review UI use PostgreSQL.
 
 - GitHub: [IamJasonBian/columbia-hackathon](https://github.com/IamJasonBian/columbia-hackathon)
 - Hackathon working document: [Quote Document (Sent)](https://docs.google.com/document/d/1TeD60bNlQqb1bOKdDRpUHgEC1B-TAxk094qYutOpqyM/edit?tab=t.0)
+- **Docs:** [docs/](./docs/) — [E2E pipeline flow](./docs/e2e-pipeline-flow.md), [Mermaid diagrams](./docs/email-extraction-pipeline.html)
 
 ## System architecture
 
@@ -64,6 +65,8 @@ sequenceDiagram
     U->>A: Save pricing and compliance decisions
     A->>DB: Recheck lease and commit edits
 ```
+
+See [docs/e2e-pipeline-flow.md](./docs/e2e-pipeline-flow.md) for a step-by-step narrative (poll → queue → worker → Postgres → review).
 
 ## Quick start
 
@@ -173,6 +176,8 @@ Both commands require `DATABASE_URL`. Use `--file-store` only for offline
 development. Mailbox reads under `/pulls` are served from PostgreSQL.
 
 ## Nicrron classification setup
+
+![Nicrron classification and pipeline logs](./docs/nicrron-calls-and-logs.gif)
 
 Nicrron provides the OpenAI-compatible classification endpoint used by direct
 `/extract/nicrron` requests and queued RFQ compliance jobs.
