@@ -175,9 +175,45 @@ EMAIL_OAUTH_STORE=firestore python bootstrap/poll_mailbox.py mailbox@example.com
 Both commands require `DATABASE_URL`. Use `--file-store` only for offline
 development. Mailbox reads under `/pulls` are served from PostgreSQL.
 
+## Task queue and worker
+
+Mailbox polling writes durable jobs to the local SQLite queue at
+`app_storage/rfq/service_queue.db`; it does not perform model or quote work in
+the polling process. Jobs use idempotency keys so polling the same Gmail
+message does not create duplicate work.
+
+| Job type | Producer | Worker action |
+| --- | --- | --- |
+| `rfq_line_items` | Mailbox poller | Parse tables and persist the quote, line items, and rule-based compliance to PostgreSQL |
+| `nicrron_classify` | Pipeline worker | Ask Nicrron to classify the email and assess customer compliance documents |
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: enqueue
+    pending --> running: worker claims
+    running --> succeeded: complete
+    running --> pending: retry with backoff
+    running --> dead: retry limit reached
+    succeeded --> [*]
+    dead --> [*]
+```
+
+Run the worker as a separate process:
+
+```bash
+export DATABASE_URL=postgresql://user:pass@host:5432/mydb
+python bootstrap/worker.py
+```
+
+For queue inspection and manual processing, start `python server.py` on port
+8020 and call `GET /tasks`, `GET /tasks/{task_id}`, or
+`POST /tasks/run-once` with `Authorization: Bearer $LOCAL_SA_TOKEN`.
+The SQLite queue is intended for a single shared host; use a distributed queue
+before running workers on multiple machines.
+
 ## Nicrron classification setup
 
-![Nicrron classification and pipeline logs](./app_storage/nicrron-calls-and-logs.gif)
+![Nicrron classification and pipeline logs](./docs/nicrron-calls-and-logs.gif)
 
 Nicrron provides the OpenAI-compatible classification endpoint used by direct
 `/extract/nicrron` requests and queued RFQ compliance jobs.
